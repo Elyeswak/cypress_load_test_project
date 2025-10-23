@@ -260,6 +260,104 @@ Cypress.Commands.add("createNetworkPulse", (title, question, questionIds) => {
       }
     }
   });
+  cy.wait(10000);
+});
+
+Cypress.Commands.add(
+  "assignNetworkPulsesToAdmin",
+  (questionIds, adminName = "Simon Wien") => {
+    // --- Wait until navigation is fully ready ---
+    cy.wait(60000);
+
+    // --- Open Network Pulses page ---
+    cy.waitUntil(() => cy.get('a[href="/admin/question"]').should("exist"), {
+      timeout: 15000,
+      interval: 500,
+      errorMsg: "Network Pulses menu link not found",
+    });
+
+    cy.get('a[href="/admin/question"]').scrollIntoView().click({ force: true });
+
+    // --- Just wait a few seconds for table to load ---
+    cy.log("⏳ Waiting for Network Pulses list to load (static delay)...");
+    cy.wait(8000); // adjust if needed (8 seconds)
+
+    // --- Make sure search box is ready ---
+    cy.get('input[placeholder="Search"]', { timeout: 20000 })
+      .should("be.visible")
+      .and("not.be.disabled");
+
+    // --- Process each Question ID ---
+    questionIds.forEach((id) => {
+      const cleanId = String(id).trim();
+      cy.log(`🔍 Assigning question ID: ${cleanId}`);
+
+      // Short delay before typing each ID
+      cy.wait(1000);
+
+      // --- Type into Search box ---
+      cy.get('input[placeholder="Search"]')
+        .click({ force: true })
+        .clear({ force: true })
+        .focus()
+        .type(cleanId, { force: true, delay: 50 });
+
+      // --- Wait a bit for the table to update ---
+      cy.wait(3000);
+
+      // --- Check if the question appears ---
+      cy.get("table tr", { timeout: 10000 }).should(($rows) => {
+        const text = $rows.text();
+        expect(text).to.include(cleanId);
+      });
+
+      // --- Open dropdown in the same row ---
+      cy.contains("tr", cleanId).within(() => {
+        cy.get("div.p-dropdown").first().click({ force: true });
+      });
+
+      // --- Type admin name and select ---
+      cy.get("input.p-dropdown-filter", { timeout: 10000 })
+        .should("be.visible")
+        .clear({ force: true })
+        .type(adminName, { delay: 50, force: true });
+
+      cy.contains("li", adminName, { timeout: 10000 }).click({ force: true });
+
+      cy.wait(1000);
+    });
+  }
+);
+
+Cypress.Commands.add("addExpertsToNetworkPulses", (questionIds) => {
+  questionIds.forEach((id) => {
+    const cleanId = String(id).trim();
+    cy.log(`🔍 Visiting question page for ID: ${cleanId}`);
+
+    // --- Visit question page directly ---
+    cy.visit(`/question/${cleanId}`);
+    cy.wait(5000); // wait for question page to load
+
+    // --- Click "Add Experts" button ---
+    cy.contains("button", "Add Experts", { timeout: 10000 })
+      .should("be.visible")
+      .click({ force: true });
+
+    cy.wait(3000); // wait for sidebar to open
+
+    // --- Click up to 3 experts in sidebar ---
+    cy.get("button")
+      .contains("Add to Network Pulse")
+      .then(($buttons) => {
+        const max = Math.min(3, $buttons.length);
+        for (let i = 0; i < max; i++) {
+          cy.wrap($buttons[i]).click({ force: true });
+          cy.wait(4000); // wait 4 seconds between clicks
+        }
+      });
+
+    cy.wait(2000); // short pause before next question
+  });
 });
 
 // More specific error handling

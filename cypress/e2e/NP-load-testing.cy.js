@@ -11,6 +11,11 @@ const clients = [
   { email: "dev.team+q1791@enquire.ai", password: "Test!123456" },
 ];
 
+const admin = {
+  email: "ali.colgecen+qasuperadmin@enquire.ai",
+  password: "Test!123456",
+};
+
 const questionIds = [];
 
 describe("Enquire multi-client NP creation", () => {
@@ -26,172 +31,167 @@ describe("Enquire multi-client NP creation", () => {
           });
       });
 
-      // --- Visit after login ---
       cy.visit(url);
 
       // --- Create 5 NPs per client ---
-      for (let i = 1; i <= 5; i++) {
+      for (let i = 1; i <= 1; i++) {
         const title = `Auto NP ${clientIndex + 1}-${i} (${Date.now()})`;
         const question = `Automated NP question ${i} by ${client.email}`;
         cy.log(`Creating NP ${i} for client ${client.email}`);
-
-        // Call the custom command (passes shared questionIds array)
         cy.createNetworkPulse(title, question, questionIds);
       }
     });
   });
 
-  after(() => {
-    // --- Log all created question IDs after the suite finishes ---
+  // --- After all clients are done ---
+  it("should log in as admin, assign all created NPs to Simon Wien, and add experts", () => {
     cy.log("✅ All created question IDs:", JSON.stringify(questionIds));
-  });
 
-  
+    // --- Admin login ---
+    cy.session("auth0-login-admin", () => {
+      cy.loginToAuth0(admin.email, admin.password, url);
+    });
+
+    cy.visit(url);
+
+    cy.then(() => {
+      cy.log(`Assigning ${questionIds.length} total NPs to Simon Wien`);
+      cy.assignNetworkPulsesToAdmin(questionIds, "Simon Wien");
+
+      // --- Add experts to each NP ---
+      cy.log(`Adding experts to ${questionIds.length} NPs`);
+      cy.addExpertsToNetworkPulses(questionIds);
+    });
+  });
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // it("1. Admin adds experts to questions with manual login every 2 questions", () => {
-  //   QUESTIONS.forEach((questionId, questionIndex) => {
-  //     // // Refresh token every 2 questions using manual login
-  //     // if (questionIndex % 2 === 0) {
-  //     //   cy.session(`refresh-token-${questionIndex}`, () => {
-  //     //     cy.visit(BASE_URL);
-  //     //     cy.pause(); // Manual intervention point
-  //     //   }).then(() => {
-  //     //     // Capture refreshed token
-  //     //     cy.getCookie("jwtToken").should("exist").then((cookie) => {
-  //     //       adminToken = cookie.value;
-  //     //       cy.log(`🔑 Refreshed JWT captured before question ${questionId}: ${adminToken.substring(0, 20)}...`);
-  //     //     });
-  //     //   });
-  //     // }
+//   QUESTIONS.forEach((questionId, questionIndex) => {
+//     // // Refresh token every 2 questions using manual login
+//     // if (questionIndex % 2 === 0) {
+//     //   cy.session(`refresh-token-${questionIndex}`, () => {
+//     //     cy.visit(BASE_URL);
+//     //     cy.pause(); // Manual intervention point
+//     //   }).then(() => {
+//     //     // Capture refreshed token
+//     //     cy.getCookie("jwtToken").should("exist").then((cookie) => {
+//     //       adminToken = cookie.value;
+//     //       cy.log(`🔑 Refreshed JWT captured before question ${questionId}: ${adminToken.substring(0, 20)}...`);
+//     //     });
+//     //   });
+//     // }
 
-  //     // Add experts to the question
-  //     EXPERTS.forEach((exp) => {
-  //       cy.then(() => {
-  //         // Use cy.then to ensure we have the latest token value
-  //         cy.request({
-  //           method: "POST",
-  //           url: `https://api.appqa.enquire.ai/api/v1/organizer/questions/add-expert`,
-  //           headers: {
-  //             Authorization: `Bearer ${adminToken}`,
-  //             "Content-Type": "application/json",
-  //             Accept: "application/json, text/plain, */*",
-  //           },
-  //           body: {
-  //             questionId,
-  //             expertProfileIds: [exp.uid],
-  //           },
-  //           failOnStatusCode: false,
-  //         }).then((resp) => {
-  //           if (resp.status !== 200) {
-  //             cy.log(
-  //               `❌ Failed to add expert ${exp.uid} to question ${questionId}: ${resp.status}`
-  //             );
-  //             if (resp.status !== 401) {
-  //               // Don't log full response for auth errors
-  //               cy.log(JSON.stringify(resp.body, null, 2));
-  //             }
-  //           } else {
-  //             cy.log(`✅ Added expert ${exp.uid} to question ${questionId}`);
-  //           }
-  //         });
-  //       });
+//     // Add experts to the question
+//     EXPERTS.forEach((exp) => {
+//       cy.then(() => {
+//         // Use cy.then to ensure we have the latest token value
+//         cy.request({
+//           method: "POST",
+//           url: `https://api.appqa.enquire.ai/api/v1/organizer/questions/add-expert`,
+//           headers: {
+//             Authorization: `Bearer ${adminToken}`,
+//             "Content-Type": "application/json",
+//             Accept: "application/json, text/plain, */*",
+//           },
+//           body: {
+//             questionId,
+//             expertProfileIds: [exp.uid],
+//           },
+//           failOnStatusCode: false,
+//         }).then((resp) => {
+//           if (resp.status !== 200) {
+//             cy.log(
+//               `❌ Failed to add expert ${exp.uid} to question ${questionId}: ${resp.status}`
+//             );
+//             if (resp.status !== 401) {
+//               // Don't log full response for auth errors
+//               cy.log(JSON.stringify(resp.body, null, 2));
+//             }
+//           } else {
+//             cy.log(`✅ Added expert ${exp.uid} to question ${questionId}`);
+//           }
+//         });
+//       });
 
-  //       cy.wait(1500);
-  //     });
-  //   });
-  // });
+//       cy.wait(1500);
+//     });
+//   });
+// });
 
-  // it("2. Experts answer questions (one manual login per expert)", () => {
-  //   EXPERTS.forEach((exp) => {
-  //     // Fresh login session for each expert
-  //     cy.session(`manual-login-expert-${exp.uid}`, () => {
-  //       cy.visit(BASE_URL);
-  //       cy.pause(); // Manual intervention to switch user
-  //     }).then(() => {
-  //       // Capture expert token
-  //       cy.getCookie("jwtToken")
-  //         .should("exist")
-  //         .then((cookie) => {
-  //           adminToken = cookie.value; // Reusing the variable name but it's actually the expert token
-  //           cy.log(
-  //             `🔑 Captured JWT for expert ${exp.uid}: ${adminToken.substring(
-  //               0,
-  //               20
-  //             )}...`
-  //           );
-  //         });
-  //     });
+// it("2. Experts answer questions (one manual login per expert)", () => {
+//   EXPERTS.forEach((exp) => {
+//     // Fresh login session for each expert
+//     cy.session(`manual-login-expert-${exp.uid}`, () => {
+//       cy.visit(BASE_URL);
+//       cy.pause(); // Manual intervention to switch user
+//     }).then(() => {
+//       // Capture expert token
+//       cy.getCookie("jwtToken")
+//         .should("exist")
+//         .then((cookie) => {
+//           adminToken = cookie.value; // Reusing the variable name but it's actually the expert token
+//           cy.log(
+//             `🔑 Captured JWT for expert ${exp.uid}: ${adminToken.substring(
+//               0,
+//               20
+//             )}...`
+//           );
+//         });
+//     });
 
-  //     // Submit answers for all questions
-  //     QUESTIONS.forEach((questionId) => {
-  //       cy.then(() => {
-  //         cy.request({
-  //           method: "POST",
-  //           url: `https://api.appqa.enquire.ai/api/v1/question-responses`,
-  //           headers: {
-  //             Authorization: `Bearer ${adminToken}`,
-  //             "Content-Type": "application/json",
-  //             Accept: "application/json, text/plain, */*",
-  //           },
-  //           body: {
-  //             text: `Test answer from expert ${exp.uid} for question ${questionId}`,
-  //             questionId,
-  //             source: "web",
-  //             expertProfileId: exp.uid,
-  //             complianceAcknowledgement: true,
-  //           },
-  //           failOnStatusCode: false,
-  //         }).then((resp) => {
-  //           if (resp.status !== 201) {
-  //             cy.log(
-  //               `⚠️ Failed answer for expert ${exp.uid} on question ${questionId}, status: ${resp.status}`
-  //             );
-  //             if (resp.status !== 500 && resp.status !== 401) {
-  //               // Don't log full response for server/auth errors
-  //               cy.log(JSON.stringify(resp.body, null, 2));
-  //             }
-  //           } else {
-  //             cy.log(
-  //               `✅ Answer submitted by expert ${exp.uid} for question ${questionId}`
-  //             );
-  //           }
-  //         });
-  //       });
+//     // Submit answers for all questions
+//     QUESTIONS.forEach((questionId) => {
+//       cy.then(() => {
+//         cy.request({
+//           method: "POST",
+//           url: `https://api.appqa.enquire.ai/api/v1/question-responses`,
+//           headers: {
+//             Authorization: `Bearer ${adminToken}`,
+//             "Content-Type": "application/json",
+//             Accept: "application/json, text/plain, */*",
+//           },
+//           body: {
+//             text: `Test answer from expert ${exp.uid} for question ${questionId}`,
+//             questionId,
+//             source: "web",
+//             expertProfileId: exp.uid,
+//             complianceAcknowledgement: true,
+//           },
+//           failOnStatusCode: false,
+//         }).then((resp) => {
+//           if (resp.status !== 201) {
+//             cy.log(
+//               `⚠️ Failed answer for expert ${exp.uid} on question ${questionId}, status: ${resp.status}`
+//             );
+//             if (resp.status !== 500 && resp.status !== 401) {
+//               // Don't log full response for server/auth errors
+//               cy.log(JSON.stringify(resp.body, null, 2));
+//             }
+//           } else {
+//             cy.log(
+//               `✅ Answer submitted by expert ${exp.uid} for question ${questionId}`
+//             );
+//           }
+//         });
+//       });
 
-  //       cy.wait(2000);
-  //     });
-  //   });
-  // });
+//       cy.wait(2000);
+//     });
+//   });
+// });
 
-  // it("3. Manual login for final approving", () => {
-  //   cy.session("manual-login-final", () => {
-  //     cy.visit(BASE_URL);
-  //     cy.pause(); // Final manual intervention
-  //   }).then(() => {
-  //     cy.getCookie("jwtToken")
-  //       .should("exist")
-  //       .then((cookie) => {
-  //         adminToken = cookie.value;
-  //         cy.log(`🔑 Final JWT captured: ${adminToken.substring(0, 20)}...`);
-  //       });
-  //   });
-  // });
+// it("3. Manual login for final approving", () => {
+//   cy.session("manual-login-final", () => {
+//     cy.visit(BASE_URL);
+//     cy.pause(); // Final manual intervention
+//   }).then(() => {
+//     cy.getCookie("jwtToken")
+//       .should("exist")
+//       .then((cookie) => {
+//         adminToken = cookie.value;
+//         cy.log(`🔑 Final JWT captured: ${adminToken.substring(0, 20)}...`);
+//       });
+//   });
+// });
+
+it("test", function () {});
