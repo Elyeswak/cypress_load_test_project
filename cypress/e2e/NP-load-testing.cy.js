@@ -1,9 +1,10 @@
 const BASE_URL = "https://appqa.enquire.ai";
-
-let adminToken;
 const url = "https://appqa.enquire.ai/";
 
-// --- accounts ---
+let adminToken;
+const questionIds = [];
+let expertsMap;
+
 const clients = [
   // { email: "dev.team+q1810@enquire.ai", password: "Test!123456" },
   // { email: "dev.team+q1792@enquire.ai", password: "Test!123456" },
@@ -16,11 +17,10 @@ const admin = {
   password: "Test!123456",
 };
 
-const questionIds = [];
-
 describe("Enquire multi-client NP creation", () => {
+  // --- Create NPs for each client ---
   clients.forEach((client, clientIndex) => {
-    it(`should log in as client ${clientIndex + 1} and create 5 NPs`, () => {
+    it(`should log in as client ${clientIndex + 1} and create 2 NPs`, () => {
       cy.session(`auth0-login-${client.email}`, () => {
         cy.loginToAuth0(client.email, client.password, url);
       }).then(() => {
@@ -33,7 +33,6 @@ describe("Enquire multi-client NP creation", () => {
 
       cy.visit(url);
 
-      // --- Create 5 NPs per client ---
       for (let i = 1; i <= 1; i++) {
         const title = `Auto NP ${clientIndex + 1}-${i} (${Date.now()})`;
         const question = `Automated NP question ${i} by ${client.email}`;
@@ -43,11 +42,10 @@ describe("Enquire multi-client NP creation", () => {
     });
   });
 
-  // --- After all clients are done ---
-  it("should log in as admin, assign all created NPs to Simon Wien, and add experts", () => {
+  // --- Admin actions after all clients finish ---
+  it("should log in as admin, assign NPs, and add experts", () => {
     cy.log("✅ All created question IDs:", JSON.stringify(questionIds));
 
-    // --- Admin login ---
     cy.session("auth0-login-admin", () => {
       cy.loginToAuth0(admin.email, admin.password, url);
     });
@@ -55,12 +53,18 @@ describe("Enquire multi-client NP creation", () => {
     cy.visit(url);
 
     cy.then(() => {
-      cy.log(`Assigning ${questionIds.length} total NPs to Simon Wien`);
+      cy.log(`Assigning ${questionIds.length} NPs to Simon Wien`);
       cy.assignNetworkPulsesToAdmin(questionIds, "Simon Wien");
 
-      // --- Add experts to each NP ---
-      cy.log(`Adding experts to ${questionIds.length} NPs`);
-      cy.addExpertsToNetworkPulses(questionIds);
+      cy.log(`Adding experts to ${questionIds.length} NPs...`);
+    });
+
+    cy.addExpertsToNetworkPulses(questionIds).then((map) => {
+      expertsMap = map;
+      cy.log("✅ Expert map collected!");
+      console.log("Experts map in test:", expertsMap);
+      
+      cy.answerQuestionsAsExperts(expertsMap, "This is an automated answer from Cypress.");
     });
   });
 });

@@ -267,7 +267,7 @@ Cypress.Commands.add(
   "assignNetworkPulsesToAdmin",
   (questionIds, adminName = "Simon Wien") => {
     // --- Wait until navigation is fully ready ---
-    cy.wait(60000);
+    cy.wait(8000);
 
     // --- Open Network Pulses page ---
     cy.waitUntil(() => cy.get('a[href="/admin/question"]').should("exist"), {
@@ -329,36 +329,153 @@ Cypress.Commands.add(
   }
 );
 
-Cypress.Commands.add("addExpertsToNetworkPulses", (questionIds) => {
-  questionIds.forEach((id) => {
-    const cleanId = String(id).trim();
-    cy.log(`🔍 Visiting question page for ID: ${cleanId}`);
+Cypress.Commands.add(
+  "addExpertsToNetworkPulses",
+  (questionIds, questionExpertsMap = new Map()) => {
+    // Wrap null to start Cypress chain
+    cy.wrap(null)
+      .then(() => {
+        // Process questions sequentially using cy.wrap + reduce
+        return questionIds.reduce((prev, cleanIdRaw) => {
+          return prev.then(() => {
+            const cleanId = String(cleanIdRaw).trim();
+            const experts = [];
 
-    // --- Visit question page directly ---
-    cy.visit(`/question/${cleanId}`);
-    cy.wait(5000); // wait for question page to load
+            cy.log(`🔍 Visiting question page for ID: ${cleanId}`);
+            cy.visit(`/question/${cleanId}`);
+            cy.wait(4000);
 
-    // --- Click "Add Experts" button ---
-    cy.contains("button", "Add Experts", { timeout: 10000 })
-      .should("be.visible")
-      .click({ force: true });
+            cy.contains("button", "Add Experts", { timeout: 10000 })
+              .should("be.visible")
+              .click({ force: true });
 
-    cy.wait(3000); // wait for sidebar to open
+            cy.wait(2500);
 
-    // --- Click up to 3 experts in sidebar ---
-    cy.get("button")
-      .contains("Add to Network Pulse")
-      .then(($buttons) => {
-        const max = Math.min(3, $buttons.length);
-        for (let i = 0; i < max; i++) {
-          cy.wrap($buttons[i]).click({ force: true });
-          cy.wait(4000); // wait 4 seconds between clicks
+            cy.get("div.card.strong-card", { timeout: 10000 })
+              .then(($cards) => {
+                const max = Math.min(3, $cards.length);
+
+                // Process cards sequentially
+                return Cypress._.range(max).reduce((cardPrev, i) => {
+                  return cardPrev.then(() => {
+                    cy.wrap($cards.eq(i)).within(() => {
+                      cy.contains("button", "Add to Network Pulse").click({
+                        force: true,
+                      });
+                    });
+
+                    cy.wait(3000);
+
+                    cy.wrap($cards.eq(i))
+                      .find(
+                        "div.cursor-pointer, div.flex.justify-content-center, app-avatar"
+                      )
+                      .first()
+                      .click({ force: true });
+
+                    cy.wait(2000);
+
+                    cy.get("div.mt-3.flex span:nth-child(3)", {
+                      timeout: 10000,
+                    })
+                      .invoke("text")
+                      .then((text) => {
+                        const email = text.trim();
+                        if (email) {
+                          experts.push(email);
+                          cy.log(`📧 Captured expert: ${email}`);
+                        }
+                      });
+
+                    cy.get(
+                      "button.p-dialog-header-icon.p-dialog-header-maximize, button.p-dialog-header-icon.p-link",
+                      { timeout: 8000 }
+                    )
+                      .first()
+                      .click({ force: true });
+
+                    cy.wait(1500);
+                  });
+                }, cy.wrap(null)); // initial value for card reduce
+              })
+              .then(() => {
+                questionExpertsMap.set(cleanId, experts);
+                cy.log(
+                  `💾 Stored ${experts.length} experts for question ${cleanId}`
+                );
+              });
+          });
+        }, cy.wrap(null)); // initial value for question reduce
+      })
+      .then(() => {
+        cy.log("📊 Final Experts Map:");
+        for (const [q, experts] of questionExpertsMap.entries()) {
+          cy.log(`🧩 Question ${q}: ${experts.join(", ")}`);
         }
-      });
+        console.log("Final Experts Map:", questionExpertsMap);
 
-    cy.wait(2000); // short pause before next question
-  });
-});
+        // Wrap the map so it can be used later in Cypress chain
+        return cy.wrap(questionExpertsMap);
+      });
+  }
+);
+
+Cypress.Commands.add(
+  "answerQuestionsAsExperts",
+  (expertsMap, answerText = "This is an automated answer from Cypress.") => {
+    // Loop over each question in the map
+    cy.wrap(null).then(() => {
+      const questionIds = Array.from(expertsMap.keys());
+
+      return questionIds.reduce((prevQ, questionId) => {
+        return prevQ.then(() => {
+          const expertEmails = expertsMap.get(questionId) || [];
+
+          // Loop sequentially through experts for this question
+          return expertEmails.reduce((prevE, email) => {
+            return prevE.then(() => {
+              cy.log(`🔑 Logging in as expert: ${email}`);
+
+              // Login session for the expert
+              return cy
+                .session(`auth0-login-${email}`, () => {
+                  cy.loginToAuth0(
+                    email,
+                    "Test!123456",
+                    "https://appqa.enquire.ai/"
+                  );
+                })
+                .then(() => {
+                  cy.visit(`/question/${questionId}`);
+                  cy.wait(2000);
+
+                  cy.log(`✏️ Answering question ${questionId} as ${email}`);
+
+                  cy.get("textarea[pinputtextarea]")
+                    .clear({ force: true })
+                    .type("This is an automated answer", { force: true });
+
+                  // Click Submit Answer
+                  cy.get("button#question-view-component_submit-response", {
+                    timeout: 10000,
+                  })
+                    .should("be.visible")
+                    .click({ force: true });
+
+                  // Click Accept confirmation
+                  cy.get("button.p-confirm-dialog-accept", { timeout: 10000 })
+                    .should("be.visible")
+                    .click({ force: true });
+
+                  cy.wait(2000); // small wait before next expert
+                });
+            });
+          }, cy.wrap(null)); // initial value for expert reduce
+        });
+      }, cy.wrap(null)); // initial value for question reduce
+    });
+  }
+);
 
 // More specific error handling
 Cypress.on("uncaught:exception", (err, runnable) => {
